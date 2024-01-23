@@ -23,16 +23,18 @@ end
 function getAllLandingZones()
     local allLandingZones = {}
     local index = 1
-    local landingZone = trigger.misc.getZone(ZONE_BASE_NAME .. '-' .. index)
-
-    while landingZone do
+  
+    repeat
+      local landingZone = trigger.misc.getZone(ZONE_BASE_NAME .. '-' .. index)
+      if landingZone then
         table.insert(allLandingZones, landingZone)
-        index = index + 1
-        landingZone = trigger.misc.getZone(ZONE_BASE_NAME .. '-' .. index)
-    end
-
+      end
+      index = index + 1
+    until not landingZone
+  
     return allLandingZones
-end
+  end
+  
 
 function main()
     local allLandingZones = getAllLandingZones()
