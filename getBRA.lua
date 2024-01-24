@@ -66,7 +66,7 @@ function main()
 
     -- shows BRA
     trigger.action.outText('BRA, ' ..
-        (math.floor(bearing + 0.5) - 6) .. -- -6 is the magnetic declination???
+        (math.floor(bearing + 0.5)) .. -- true heading
         ' for ' .. round(distance, 10) .. ', at '
         .. ((redCoord.alt < 5000) and round(redCoord.alt, 500) or round(redCoord.alt, 1000)), 10)
 end

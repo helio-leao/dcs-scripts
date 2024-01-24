@@ -1,5 +1,6 @@
 -- FORMULA
 -- https://www.igismap.com/formula-to-find-bearing-or-heading-angle-between-two-points-latitude-longitude/
+-- calculates true heading
 
 function getBearing(a, b)
     local aLatRad = math.rad(a.lat)
