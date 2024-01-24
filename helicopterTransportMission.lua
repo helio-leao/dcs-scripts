@@ -1,6 +1,8 @@
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
+local PLAYER_UNIT_NAME = 'player'
 
 local availableZones = {}
+local player = nil
 
 
 -- todo: verify zone altitude on helipads
@@ -40,29 +42,50 @@ local function getAllZones()
     return allZones
 end
 
--- todo: adjust
-local function getCurrentZone()
-    availableZones = getAllZones()
+local function getRandomZone()
+    local randomZoneIndex = math.random(#availableZones)
+    local randomZone = availableZones[randomZoneIndex]
 
-    local currentZoneIndex = math.random(#availableZones)
-    local currentZone = availableZones[currentZoneIndex]
+    table.remove(availableZones, randomZoneIndex)
 
-    table.remove(availableZones, currentZoneIndex)
+    return randomZone
+end
 
-    return currentZone
+local function getRandomRoute()
+    return { origin = getRandomZone(), destiny = getRandomZone()}
 end
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local function f(vars)
-    trigger.action.outText(vars.message, 10)
-    missionCommands.removeItem({ [1] = 'Submenu test' })
+local function startMission(route)
+    trigger.action.outText('Go to the origin of the route at '
+        .. route.origin.point.x .. ' and notify the central.', 10)
+
+    -- todo: at least add a mark point on lz
 end
 
+local function initMenu(route)
+    missionCommands.addSubMenu('Transport Mission')
+    missionCommands.addCommand(route.origin.point.x .. ' to ' .. route.destiny.point.x,
+        { [1] = 'Transport Mission' }, startMission, route)
+end
+
+-------------------------------------------------------------------------------------------------------------------------
 
 local function main()
-    missionCommands.addSubMenu('Submenu test')
-    missionCommands.addCommand("Command test", { [1] = 'Submenu test' }, f, { message = 'removing submenu' })
+    availableZones = getAllZones()
+    player = Unit.getByName(PLAYER_UNIT_NAME)
+
+    if #availableZones < 2 then
+        trigger.action.outText('More than 2 landing zones needed to run script.', 10)
+        return
+    end
+    if not player then
+        trigger.action.outText('Unit named "player" needed to run script.', 10)
+        return
+    end
+
+    initMenu(getRandomRoute())
 end
 
 main()
