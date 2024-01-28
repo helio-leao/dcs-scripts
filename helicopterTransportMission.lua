@@ -1,9 +1,11 @@
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
+local CARGO_WEIGHT = 5000
 
 local availableZones = {}
 local player = nil
 
+-------------------------------------------------------------------------------------------------------------------------
 
 -- todo: verify zone altitude on helipads
 local function isUnitInsideZone(unit, zone)
@@ -13,15 +15,6 @@ local function isUnitInsideZone(unit, zone)
         and unitPosition.x <= (zone.point.x + zone.radius)
         and unitPosition.y >= (zone.point.y - zone.radius)
         and unitPosition.y <= (zone.point.y + zone.radius)
-
-    -- trigger.action.outText('zone'
-    --     .. '\nX: ' .. zone.point.x .. ' Z: ' .. zone.point.z
-    --     .. ' alt: ' .. zone.point.y .. ' radius: ' .. zone.radius
-    --     .. '\n\nplayer'
-    --     .. '\nX: ' .. unitPosition.x .. ' Z: ' .. unitPosition.z
-    --     .. ' alt: ' .. unitPosition.y
-    --     .. '\n\nunit inside zone: ' .. (result and 'true' or 'false')
-    -- , 1)
 
     return result
 end
@@ -57,17 +50,75 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local function startMission(route)
-    trigger.action.outText('Go to the origin of the route at '
-        .. route.origin.point.x .. ' and notify the central.', 10)
+local function unloadCargo(route)
+    -- verify if player is on zone
+    local isPlayerOnLz = isUnitInsideZone(player, route.destiny)
 
-    -- todo: at least add a mark point on lz
+    if not isPlayerOnLz then
+        trigger.action.outText('Not on LZ', 10)
+        return
+    end
+
+    -- remove mark from the map
+    trigger.action.removeMark(1)
+
+    -- add cargo to aircraft
+    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
+    trigger.action.outText('Cargo unloaded. Route finished.', 10)
+    
+    -- returns route zones to availableZones
+    table.insert(availableZones, route.origin)
+    table.insert(availableZones, route.destiny)
+    
+    trigger.action.outText('available zones count: ' .. #availableZones, 10)
+    
+    -- todo: restart commands
 end
 
-local function initMenu(route)
+local function loadCargo(route)
+    -- verify if player is on zone
+    local isPlayerOnLz = isUnitInsideZone(player, route.origin)
+
+    if not isPlayerOnLz then
+        trigger.action.outText('Not on LZ', 10)
+        return
+    end
+    
+    -- remove mark from the map
+    trigger.action.removeMark(1)
+
+    -- add cargo to aircraft
+    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, CARGO_WEIGHT)
+
+    -- add mark to destiny on f10 map
+    trigger.action.markToAll(1, 'route destiny', route.destiny.point) -- issue: not working
+    trigger.action.outText('Route destiny marked on F10 map.', 10)
+
+    -- update commands
+    missionCommands.removeItem({ [1] = 'Transport Mission' })
+    missionCommands.addSubMenu('Transport Mission')
+    missionCommands.addCommand('Unload Cargo',
+        { [1] = 'Transport Mission' }, unloadCargo, route)
+end
+
+local function selectRoute(route)
+    -- add mark to origin on f10 map
+    trigger.action.markToAll(1, 'route origin', route.origin.point)
+    trigger.action.outText('Route origin marked on F10 map.', 10)
+
+    -- update commands
+    missionCommands.removeItem({ [1] = 'Transport Mission' })
+    missionCommands.addSubMenu('Transport Mission')
+    missionCommands.addCommand('Load Cargo',
+        { [1] = 'Transport Mission' }, loadCargo, route)
+end
+
+local function initMenu()
+    local route = getRandomRoute()
+
     missionCommands.addSubMenu('Transport Mission')
     missionCommands.addCommand(route.origin.point.x .. ' to ' .. route.destiny.point.x,
-        { [1] = 'Transport Mission' }, startMission, route)
+        { [1] = 'Transport Mission' }, selectRoute, route)
 end
 
 -------------------------------------------------------------------------------------------------------------------------
@@ -81,11 +132,11 @@ local function main()
         return
     end
     if not player then
-        trigger.action.outText('Unit named "player" needed to run script.', 10)
+        trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME .. '" needed to run script.', 10)
         return
     end
 
-    initMenu(getRandomRoute())
+    initMenu()
 end
 
 main()
