@@ -1,9 +1,15 @@
+-- todo: delivery time
+-- todo: more than one mission
+-- note: add missions history with ponctuation or cash?
+
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
 local CARGO_WEIGHT = 5000
 
 local availableZones = {}
 local player = nil
+
+local markCount = 0
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -60,7 +66,7 @@ local function unloadCargo(route)
     end
 
     -- remove mark from the map
-    trigger.action.removeMark(1)
+    trigger.action.removeMark(markCount)
 
     -- add cargo to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
@@ -70,9 +76,8 @@ local function unloadCargo(route)
     table.insert(availableZones, route.origin)
     table.insert(availableZones, route.destiny)
     
-    trigger.action.outText('available zones count: ' .. #availableZones, 10)
-    
     -- todo: restart commands
+    missionCommands.removeItem({ [1] = 'Transport Mission' })
 end
 
 local function loadCargo(route)
@@ -83,16 +88,17 @@ local function loadCargo(route)
         trigger.action.outText('Not on LZ', 10)
         return
     end
+
+    -- remove route origin mark from f10 map
+    trigger.action.removeMark(markCount)
     
-    -- remove mark from the map
-    trigger.action.removeMark(1)
+    -- add mark to destiny on f10 map
+    markCount = markCount + 1
+    trigger.action.markToAll(markCount, 'route destiny', route.destiny.point) -- issue: not working, another code maybe???
+    trigger.action.outText('Route destiny marked on F10 map.', 10)
 
     -- add cargo to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, CARGO_WEIGHT)
-
-    -- add mark to destiny on f10 map
-    trigger.action.markToAll(1, 'route destiny', route.destiny.point) -- issue: not working
-    trigger.action.outText('Route destiny marked on F10 map.', 10)
 
     -- update commands
     missionCommands.removeItem({ [1] = 'Transport Mission' })
@@ -103,7 +109,8 @@ end
 
 local function selectRoute(route)
     -- add mark to origin on f10 map
-    trigger.action.markToAll(1, 'route origin', route.origin.point)
+    markCount = markCount + 1
+    trigger.action.markToAll(markCount, 'route origin', route.origin.point)
     trigger.action.outText('Route origin marked on F10 map.', 10)
 
     -- update commands
@@ -113,7 +120,7 @@ local function selectRoute(route)
         { [1] = 'Transport Mission' }, loadCargo, route)
 end
 
-local function initMenu()
+local function initCommands()
     local route = getRandomRoute()
 
     missionCommands.addSubMenu('Transport Mission')
@@ -136,7 +143,7 @@ local function main()
         return
     end
 
-    initMenu()
+    initCommands()
 end
 
 main()
