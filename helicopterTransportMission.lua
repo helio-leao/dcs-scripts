@@ -1,10 +1,9 @@
 -- todo: delivery time
--- todo: more than one mission
 -- note: add missions history with ponctuation or cash?
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
-local CARGO_WEIGHT = 5000
+local CARGO_WEIGHT = 1000   -- note: 10 people
 
 local availableZones = {}
 local player = nil
@@ -56,6 +55,9 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
+local  initCommands
+
+
 local function unloadCargo(route)
     -- verify if player is on zone
     local isPlayerOnLz = isUnitInsideZone(player, route.destiny)
@@ -71,13 +73,15 @@ local function unloadCargo(route)
     -- add cargo to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Route finished.', 10)
-    
+
     -- returns route zones to availableZones
     table.insert(availableZones, route.origin)
     table.insert(availableZones, route.destiny)
-    
-    -- todo: restart commands
+    trigger.action.outText('Zone count: ' .. #availableZones, 10)
+
+    -- restart commands
     missionCommands.removeItem({ [1] = 'Transport Mission' })
+    initCommands()
 end
 
 local function loadCargo(route)
@@ -91,10 +95,10 @@ local function loadCargo(route)
 
     -- remove route origin mark from f10 map
     trigger.action.removeMark(markCount)
-    
+
     -- add mark to destiny on f10 map
     markCount = markCount + 1
-    trigger.action.markToAll(markCount, 'route destiny', route.destiny.point) -- issue: not working, another code maybe???
+    trigger.action.markToAll(markCount, 'route destiny', route.destiny.point)
     trigger.action.outText('Route destiny marked on F10 map.', 10)
 
     -- add cargo to aircraft
@@ -103,8 +107,7 @@ local function loadCargo(route)
     -- update commands
     missionCommands.removeItem({ [1] = 'Transport Mission' })
     missionCommands.addSubMenu('Transport Mission')
-    missionCommands.addCommand('Unload Cargo',
-        { [1] = 'Transport Mission' }, unloadCargo, route)
+    missionCommands.addCommand('Unload Cargo', { [1] = 'Transport Mission' }, unloadCargo, route)
 end
 
 local function selectRoute(route)
@@ -116,16 +119,14 @@ local function selectRoute(route)
     -- update commands
     missionCommands.removeItem({ [1] = 'Transport Mission' })
     missionCommands.addSubMenu('Transport Mission')
-    missionCommands.addCommand('Load Cargo',
-        { [1] = 'Transport Mission' }, loadCargo, route)
+    missionCommands.addCommand('Load Cargo', { [1] = 'Transport Mission' }, loadCargo, route)
 end
 
-local function initCommands()
+initCommands = function()
     local route = getRandomRoute()
 
     missionCommands.addSubMenu('Transport Mission')
-    missionCommands.addCommand(route.origin.point.x .. ' to ' .. route.destiny.point.x,
-        { [1] = 'Transport Mission' }, selectRoute, route)
+    missionCommands.addCommand('Route', { [1] = 'Transport Mission' }, selectRoute, route)
 end
 
 -------------------------------------------------------------------------------------------------------------------------
