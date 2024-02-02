@@ -1,4 +1,6 @@
 -- todo: delivery time
+-- todo: add more route options
+-- todo: mark all landing zones at mission start
 -- note: add missions history with ponctuation or cash?
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
@@ -13,15 +15,15 @@ local markCount = 0
 -------------------------------------------------------------------------------------------------------------------------
 
 -- todo: verify zone altitude on helipads
+-- note:  is checking whether a unit is inside a square-shaped zone rather than a circular one
+-- issue: precision is off (easy to see on small zones)
 local function isUnitInsideZone(unit, zone)
     local unitPosition = unit:getPoint()
 
-    local result = unitPosition.x >= (zone.point.x - zone.radius)
+    return unitPosition.x >= (zone.point.x - zone.radius)
         and unitPosition.x <= (zone.point.x + zone.radius)
         and unitPosition.y >= (zone.point.y - zone.radius)
         and unitPosition.y <= (zone.point.y + zone.radius)
-
-    return result
 end
 
 local function getAllZones()
@@ -55,7 +57,7 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local  initCommands
+local  initCommands -- note: forward declaration of function
 
 
 local function unloadCargo(route)
@@ -77,7 +79,6 @@ local function unloadCargo(route)
     -- returns route zones to availableZones
     table.insert(availableZones, route.origin)
     table.insert(availableZones, route.destiny)
-    trigger.action.outText('Zone count: ' .. #availableZones, 10)
 
     -- restart commands
     missionCommands.removeItem({ [1] = 'Transport Mission' })
@@ -143,7 +144,6 @@ local function main()
         trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME .. '" needed to run script.', 10)
         return
     end
-
     initCommands()
 end
 

@@ -10,7 +10,7 @@
 ------------------------------------------------------------------------------------------------------------------------------------------------------------------------
 
 -- receives trigger zone and returns random vec2 point inside circular zone
--- to do: return point inside of circle instead of square
+-- todo: return point inside of circle instead of square
 function createRandomPointInZone(zone)
     local zoneVec2 = {x = zone.point.x, y = zone.point.z}
     local zoneRadius = zone.radius
