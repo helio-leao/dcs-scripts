@@ -1,16 +1,15 @@
 -- todo: delivery time
 -- todo: add more route options
--- todo: mark all landing zones at mission start
+-- todo: cancel mission
 -- note: add missions history with ponctuation or cash?
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
+local SUBMENU_NAME = 'Transport Mission'
 local CARGO_WEIGHT = 1000   -- note: 10 people
 
 local availableZones = {}
 local player = nil
-
-local markCount = 0
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -31,13 +30,18 @@ local function getAllZones()
     local index = 1
 
     repeat
-        local landingZone = trigger.misc.getZone(ZONE_BASE_NAME .. '-' .. index)
+        local zoneName = ZONE_BASE_NAME .. '-' .. index
+        local zone = trigger.misc.getZone(zoneName)
 
-        if landingZone then
-            table.insert(allZones, landingZone)
+        if zone then
+            table.insert(allZones, {
+                name = zoneName,
+                point = zone.point,
+                radius = zone.radius
+            })
             index = index + 1
         end
-    until not landingZone
+    until not zone
 
     return allZones
 end
@@ -57,7 +61,7 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local  initCommands -- note: forward declaration of function
+local  updateCommands -- note: forward declaration of function
 
 
 local function unloadCargo(route)
@@ -69,20 +73,18 @@ local function unloadCargo(route)
         return
     end
 
-    -- remove mark from the map
-    trigger.action.removeMark(markCount)
-
-    -- add cargo to aircraft
+    -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Route finished.', 10)
 
     -- returns route zones to availableZones
+    -- todo: refactor this so it's not removed and added again
     table.insert(availableZones, route.origin)
     table.insert(availableZones, route.destiny)
 
     -- restart commands
-    missionCommands.removeItem({ [1] = 'Transport Mission' })
-    initCommands()
+    missionCommands.removeItem({ [1] = SUBMENU_NAME })
+    updateCommands()
 end
 
 local function loadCargo(route)
@@ -94,43 +96,41 @@ local function loadCargo(route)
         return
     end
 
-    -- remove route origin mark from f10 map
-    trigger.action.removeMark(markCount)
-
-    -- add mark to destiny on f10 map
-    markCount = markCount + 1
-    trigger.action.markToAll(markCount, 'route destiny', route.destiny.point)
-    trigger.action.outText('Route destiny marked on F10 map.', 10)
-
     -- add cargo to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, CARGO_WEIGHT)
 
-    -- update commands
-    missionCommands.removeItem({ [1] = 'Transport Mission' })
-    missionCommands.addSubMenu('Transport Mission')
-    missionCommands.addCommand('Unload Cargo', { [1] = 'Transport Mission' }, unloadCargo, route)
+    -- updates commands for cargo unloading
+    missionCommands.removeItem({ [1] = SUBMENU_NAME })
+    missionCommands.addSubMenu(SUBMENU_NAME)
+    missionCommands.addCommand('Unload Cargo', { [1] = SUBMENU_NAME }, unloadCargo, route)
 end
 
 local function selectRoute(route)
-    -- add mark to origin on f10 map
-    markCount = markCount + 1
-    trigger.action.markToAll(markCount, 'route origin', route.origin.point)
-    trigger.action.outText('Route origin marked on F10 map.', 10)
-
-    -- update commands
-    missionCommands.removeItem({ [1] = 'Transport Mission' })
-    missionCommands.addSubMenu('Transport Mission')
-    missionCommands.addCommand('Load Cargo', { [1] = 'Transport Mission' }, loadCargo, route)
+    -- updates commands for cargo loading
+    missionCommands.removeItem({ [1] = SUBMENU_NAME })
+    missionCommands.addSubMenu(SUBMENU_NAME)
+    missionCommands.addCommand('Load Cargo', { [1] = SUBMENU_NAME }, loadCargo, route)
+    -- todo: add route "info" with zones names and coordinates
+    -- todo: updater for map marks in case player deletes them
 end
 
-initCommands = function()
+updateCommands = function()
     local route = getRandomRoute()
 
-    missionCommands.addSubMenu('Transport Mission')
-    missionCommands.addCommand('Route', { [1] = 'Transport Mission' }, selectRoute, route)
+    -- routes available for choosing
+    missionCommands.addSubMenu(SUBMENU_NAME)
+    missionCommands.addCommand(route.origin.name .. ' to ' .. route.destiny.name,
+        { [1] = SUBMENU_NAME }, selectRoute, route)
+    -- todo: updater for map marks in case player deletes them
 end
 
 -------------------------------------------------------------------------------------------------------------------------
+
+local function markAllZones()
+    for index, zone in ipairs(availableZones) do
+        trigger.action.markToAll(index, zone.name, zone.point)
+    end
+end
 
 local function main()
     availableZones = getAllZones()
@@ -144,7 +144,9 @@ local function main()
         trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME .. '" needed to run script.', 10)
         return
     end
-    initCommands()
+
+    markAllZones()
+    updateCommands()
 end
 
 main()
