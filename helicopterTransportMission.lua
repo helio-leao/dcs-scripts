@@ -4,7 +4,7 @@
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
-local SUBMENU_NAME = 'Transport Mission'
+local MAIN_SUBMENU_NAME = 'Transport Mission'
 local CARGO_WEIGHT = 1000   -- note: 10 people
 
 local availableZones = {}
@@ -12,8 +12,8 @@ local player = nil
 
 -------------------------------------------------------------------------------------------------------------------------
 
--- todo: verify zone altitude on helipads
--- note:  is checking whether a unit is inside a square-shaped zone rather than a circular one
+-- note: doesn't verify altitude
+-- note: checking whether a unit is inside a square-shaped zone rather than a circular one
 -- issue: precision is off (easy to see on small zones)
 local function isUnitInsideZone(unit, zone)
     local unitPosition = unit:getPoint()
@@ -49,8 +49,9 @@ local function getRandomRoute()
     local randomZoneIndex1 = math.random(#availableZones)
     local randomZoneIndex2
 
-    repeat randomZoneIndex2 = math.random(#availableZones)
-        until randomZoneIndex2 ~= randomZoneIndex1
+    repeat
+        randomZoneIndex2 = math.random(#availableZones)
+    until randomZoneIndex2 ~= randomZoneIndex1
 
     return {
         origin = availableZones[randomZoneIndex1],
@@ -100,8 +101,13 @@ local function unloadCargo(route)
     trigger.action.outText('Cargo unloaded. Route finished.', 10)
 
     -- restart commands
-    missionCommands.removeItem({ [1] = SUBMENU_NAME })
+    missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     updateCommands()
+end
+
+local function showRouteInformation(route)
+    -- todo: flesh this out
+    trigger.action.outText(route.origin.name .. ' to ' .. route.destiny.name, 10)
 end
 
 local function loadCargo(route)
@@ -117,28 +123,36 @@ local function loadCargo(route)
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, CARGO_WEIGHT)
 
     -- updates commands for cargo unloading
-    missionCommands.removeItem({ [1] = SUBMENU_NAME })
-    missionCommands.addSubMenu(SUBMENU_NAME)
-    missionCommands.addCommand('Unload Cargo', { [1] = SUBMENU_NAME }, unloadCargo, route)
+    missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
+    local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
+    missionCommands.addCommand('Unload Cargo', mainSubmenu, unloadCargo, route)
+    missionCommands.addCommand('Information', mainSubmenu, showRouteInformation, route)
+    -- todo: cancel route command
 end
 
 local function selectRoute(route)
+    showRouteInformation(route)
+
     -- updates commands for cargo loading
-    missionCommands.removeItem({ [1] = SUBMENU_NAME })
-    missionCommands.addSubMenu(SUBMENU_NAME)
-    missionCommands.addCommand('Load Cargo', { [1] = SUBMENU_NAME }, loadCargo, route)
-    -- todo: add route "info" with zones names and coordinates
+    missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
+    local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
+    missionCommands.addCommand('Load Cargo', mainSubmenu, loadCargo, route)
+    missionCommands.addCommand('Information', mainSubmenu, showRouteInformation, route)
+    -- todo: cancel route command
 end
 
 updateCommands = function()
     local routes = getRandomRouteList()
 
-    -- set submenu and commands
-    missionCommands.addSubMenu(SUBMENU_NAME)
+    -- create main submenu
+    local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
 
+    -- create each route submenu and commands
     for _, route in ipairs(routes) do
-        missionCommands.addCommand(route.origin.name .. ' to ' .. route.destiny.name,
-            { [1] = SUBMENU_NAME }, selectRoute, route)
+        local routeSubmenu = missionCommands.addSubMenu(
+            route.origin.name .. ' to ' .. route.destiny.name, mainSubmenu)
+        missionCommands.addCommand('Accept', routeSubmenu, selectRoute, route)
+        missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, route)
     end
 end
 
