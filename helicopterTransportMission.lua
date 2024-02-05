@@ -7,7 +7,7 @@ local MAIN_SUBMENU_NAME = 'Transport Mission'
 local CARGO_WEIGHT = 1000   -- note: 10 people
 
 local availableZones = {}
-local player  -- note: start with nill?
+local player  -- note: start with nil?
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -135,10 +135,6 @@ local function loadCargo(route)
 end
 
 local function selectRoute(route)
-    showRouteInformation(route)
-
-    --todo: verify the possibility to change the color of selected route zones color on map
-
     -- updates commands for cargo loading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
@@ -164,10 +160,19 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
--- todo: change the type of markings on map
 local function markAllZones()
+    local red = {1, 0, 0, 1}
+    local transparent = {0, 0, 0, 0}
+    local coalition = -1
+    local lineType = 1
+    local radius = 2000
+
     for index, zone in ipairs(availableZones) do
-        trigger.action.markToAll(index, zone.name, zone.point)
+        trigger.action.circleToAll(coalition, index, zone.point,
+            radius, red, transparent, lineType)
+        trigger.action.textToAll(coalition, #availableZones + index,
+            {x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y},
+            red, transparent, 20,  true, zone.name)
     end
 end
 
