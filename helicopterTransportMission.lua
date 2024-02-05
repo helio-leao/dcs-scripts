@@ -1,5 +1,4 @@
 -- todo: delivery time
--- todo: add more route options
 -- todo: cancel mission
 -- note: add missions history with ponctuation or cash?
 
@@ -46,17 +45,40 @@ local function getAllZones()
     return allZones
 end
 
-local function getRandomZone()
-    local randomZoneIndex = math.random(#availableZones)
-    local randomZone = availableZones[randomZoneIndex]
+local function getRandomRoute()
+    local randomZoneIndex1 = math.random(#availableZones)
+    local randomZoneIndex2
 
-    table.remove(availableZones, randomZoneIndex)
+    repeat randomZoneIndex2 = math.random(#availableZones)
+        until randomZoneIndex2 ~= randomZoneIndex1
 
-    return randomZone
+    return {
+        origin = availableZones[randomZoneIndex1],
+        destiny = availableZones[randomZoneIndex2]
+    }
 end
 
-local function getRandomRoute()
-    return { origin = getRandomZone(), destiny = getRandomZone()}
+local function getRandomRouteList()
+    local routeList = {}
+
+    while #routeList ~= 2 do
+        local randomRoute = getRandomRoute()
+        local isRouteDuplicate = false
+
+        for i = 1, #routeList, 1 do
+            if(routeList[i].origin.name == randomRoute.origin.name and
+                routeList[i].destiny.name == randomRoute.destiny.name) then
+                isRouteDuplicate = true
+                break
+            end
+        end
+        
+        if not isRouteDuplicate then
+            table.insert(routeList, randomRoute)
+        end
+    end
+
+    return routeList
 end
 
 -------------------------------------------------------------------------------------------------------------------------
@@ -76,11 +98,6 @@ local function unloadCargo(route)
     -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Route finished.', 10)
-
-    -- returns route zones to availableZones
-    -- todo: refactor this so it's not removed and added again
-    table.insert(availableZones, route.origin)
-    table.insert(availableZones, route.destiny)
 
     -- restart commands
     missionCommands.removeItem({ [1] = SUBMENU_NAME })
@@ -111,21 +128,23 @@ local function selectRoute(route)
     missionCommands.addSubMenu(SUBMENU_NAME)
     missionCommands.addCommand('Load Cargo', { [1] = SUBMENU_NAME }, loadCargo, route)
     -- todo: add route "info" with zones names and coordinates
-    -- todo: updater for map marks in case player deletes them
 end
 
 updateCommands = function()
-    local route = getRandomRoute()
+    local routes = getRandomRouteList()
 
-    -- routes available for choosing
+    -- set submenu and commands
     missionCommands.addSubMenu(SUBMENU_NAME)
-    missionCommands.addCommand(route.origin.name .. ' to ' .. route.destiny.name,
-        { [1] = SUBMENU_NAME }, selectRoute, route)
-    -- todo: updater for map marks in case player deletes them
+
+    for _, route in ipairs(routes) do
+        missionCommands.addCommand(route.origin.name .. ' to ' .. route.destiny.name,
+            { [1] = SUBMENU_NAME }, selectRoute, route)
+    end
 end
 
 -------------------------------------------------------------------------------------------------------------------------
 
+-- todo: change the type of markings on map
 local function markAllZones()
     for index, zone in ipairs(availableZones) do
         trigger.action.markToAll(index, zone.name, zone.point)
