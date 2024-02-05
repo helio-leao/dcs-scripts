@@ -1,5 +1,4 @@
 -- todo: delivery time
--- todo: cancel mission
 -- note: add missions history with ponctuation or cash?
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
@@ -12,16 +11,20 @@ local player = nil
 
 -------------------------------------------------------------------------------------------------------------------------
 
--- note: doesn't verify altitude
--- note: checking whether a unit is inside a square-shaped zone rather than a circular one
+-- note: no altitude verification
+-- note: checking whether the player is inside a square-shaped zone rather than a circular one
 -- issue: precision is off (easy to see on small zones)
-local function isUnitInsideZone(unit, zone)
-    local unitPosition = unit:getPoint()
+local function isPlayerInZone(zone)
+    if not player then
+        return false
+    end
 
-    return unitPosition.x >= (zone.point.x - zone.radius)
-        and unitPosition.x <= (zone.point.x + zone.radius)
-        and unitPosition.y >= (zone.point.y - zone.radius)
-        and unitPosition.y <= (zone.point.y + zone.radius)
+    local playerPosition = player:getPoint()
+
+    return playerPosition.x >= (zone.point.x - zone.radius)
+        and playerPosition.x <= (zone.point.x + zone.radius)
+        and playerPosition.y >= (zone.point.y - zone.radius)
+        and playerPosition.y <= (zone.point.y + zone.radius)
 end
 
 local function getAllZones()
@@ -73,7 +76,7 @@ local function getRandomRouteList()
                 break
             end
         end
-        
+
         if not isRouteDuplicate then
             table.insert(routeList, randomRoute)
         end
@@ -87,11 +90,13 @@ end
 local  updateCommands -- note: forward declaration of function
 
 
-local function unloadCargo(route)
-    -- verify if player is on zone
-    local isPlayerOnLz = isUnitInsideZone(player, route.destiny)
+local function restartCommands()
+    missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
+    updateCommands()
+end
 
-    if not isPlayerOnLz then
+local function unloadCargo(route)
+    if not isPlayerInZone(route.destiny) then
         trigger.action.outText('Not on LZ', 10)
         return
     end
@@ -100,9 +105,7 @@ local function unloadCargo(route)
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Route finished.', 10)
 
-    -- restart commands
-    missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
-    updateCommands()
+    restartCommands()
 end
 
 local function showRouteInformation(route)
@@ -110,11 +113,13 @@ local function showRouteInformation(route)
     trigger.action.outText(route.origin.name .. ' to ' .. route.destiny.name, 10)
 end
 
-local function loadCargo(route)
-    -- verify if player is on zone
-    local isPlayerOnLz = isUnitInsideZone(player, route.origin)
+local function cancelRoute()
+    trigger.action.outText('Route Canceled', 10)
+    restartCommands()
+end
 
-    if not isPlayerOnLz then
+local function loadCargo(route)
+    if not isPlayerInZone(route.origin) then
         trigger.action.outText('Not on LZ', 10)
         return
     end
@@ -127,18 +132,20 @@ local function loadCargo(route)
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
     missionCommands.addCommand('Unload Cargo', mainSubmenu, unloadCargo, route)
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation, route)
-    -- todo: cancel route command
+    missionCommands.addCommand('Cancel', mainSubmenu, cancelRoute, route)
 end
 
 local function selectRoute(route)
     showRouteInformation(route)
+
+    --todo: verify the possibility to change the color of selected route zones color on map
 
     -- updates commands for cargo loading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
     missionCommands.addCommand('Load Cargo', mainSubmenu, loadCargo, route)
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation, route)
-    -- todo: cancel route command
+    missionCommands.addCommand('Cancel', mainSubmenu, cancelRoute, route)
 end
 
 updateCommands = function()
