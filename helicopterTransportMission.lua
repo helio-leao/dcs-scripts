@@ -7,7 +7,7 @@ local MAIN_SUBMENU_NAME = 'Transport Mission'
 local CARGO_WEIGHT = 1000   -- note: 10 people
 
 local availableZones = {}
-local player = nil
+local player  -- note: start with nill?
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -15,10 +15,6 @@ local player = nil
 -- note: checking whether the player is inside a square-shaped zone rather than a circular one
 -- issue: precision is off (easy to see on small zones)
 local function isPlayerInZone(zone)
-    if not player then
-        return false
-    end
-
     local playerPosition = player:getPoint()
 
     return playerPosition.x >= (zone.point.x - zone.radius)
@@ -63,9 +59,10 @@ local function getRandomRoute()
 end
 
 local function getRandomRouteList()
+    local routesNumber = #availableZones > 2 and 4 or 2
     local routeList = {}
 
-    while #routeList ~= 2 do
+    while #routeList ~= routesNumber do
         local randomRoute = getRandomRoute()
         local isRouteDuplicate = false
 
@@ -87,7 +84,9 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local  updateCommands -- note: forward declaration of function
+-- note: forward declaration of function
+-- note: start with some value?
+local  updateCommands
 
 
 local function restartCommands()
