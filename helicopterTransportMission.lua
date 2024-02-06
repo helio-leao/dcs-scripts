@@ -28,12 +28,11 @@ local function getAllZones()
     local index = 1
 
     repeat
-        local zoneName = ZONE_BASE_NAME .. '-' .. index
-        local zone = trigger.misc.getZone(zoneName)
+        local zone = trigger.misc.getZone(ZONE_BASE_NAME .. '-' .. index)
 
         if zone then
             table.insert(allZones, {
-                name = zoneName,
+                id = index,
                 point = zone.point,
                 radius = zone.radius
             })
@@ -67,8 +66,8 @@ local function getRandomRouteList()
         local isRouteDuplicate = false
 
         for i = 1, #routeList, 1 do
-            if(routeList[i].origin.name == randomRoute.origin.name and
-                routeList[i].destiny.name == randomRoute.destiny.name) then
+            if(routeList[i].origin.id == randomRoute.origin.id and
+                routeList[i].destiny.id == randomRoute.destiny.id) then
                 isRouteDuplicate = true
                 break
             end
@@ -109,7 +108,7 @@ end
 
 local function showRouteInformation(route)
     -- todo: flesh this out
-    trigger.action.outText(route.origin.name .. ' to ' .. route.destiny.name, 10)
+    trigger.action.outText(route.origin.id .. ' to ' .. route.destiny.id, 10)
 end
 
 local function cancelRoute()
@@ -152,13 +151,11 @@ updateCommands = function()
     -- create each route submenu and commands
     for _, route in ipairs(routes) do
         local routeSubmenu = missionCommands.addSubMenu(
-            route.origin.name .. ' to ' .. route.destiny.name, mainSubmenu)
+            route.origin.id .. ' to ' .. route.destiny.id, mainSubmenu)
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, route)
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, route)
     end
 end
-
--------------------------------------------------------------------------------------------------------------------------
 
 local function markAllZones()
     local red = {1, 0, 0, 1}
@@ -171,10 +168,12 @@ local function markAllZones()
         trigger.action.circleToAll(coalition, index, zone.point,
             radius, red, transparent, lineType)
         trigger.action.textToAll(coalition, #availableZones + index,
-            {x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y},
-            red, transparent, 20,  true, zone.name)
+            { x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y },
+            red, transparent, 20,  true, zone.id)
     end
 end
+
+-------------------------------------------------------------------------------------------------------------------------
 
 local function main()
     availableZones = getAllZones()
