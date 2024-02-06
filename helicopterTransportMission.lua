@@ -106,9 +106,26 @@ local function unloadCargo(route)
     restartCommands()
 end
 
+local function getDistance(point1, point2)
+    local xd = point1.x - point2.x;
+    local zd = point1.z - point2.z;
+
+    return math.sqrt(xd * xd + zd * zd);
+end
+
 local function showRouteInformation(route)
-    -- todo: flesh this out
-    trigger.action.outText(route.origin.id .. ' to ' .. route.destiny.id, 10)
+    local distance = getDistance(route.origin.point, route.destiny.point)
+
+    -- calculate approximate time in minutes, given a speed of 200 km/h
+    local speedInMetersPerSecond = 200 * 1000 / 3600  -- convert km/h to m/s
+    local aproxTimeInSeconds = distance / speedInMetersPerSecond
+    local aproxTimeInMinutes = math.floor(aproxTimeInSeconds / 60)
+
+    local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
+        'Distance: ' .. math.floor(distance) .. ' meters\n\n' ..
+        'Approximate time: ' .. aproxTimeInMinutes .. ' minutes at 200km/h'
+
+    trigger.action.outText(data, 10)
 end
 
 local function cancelRoute()
