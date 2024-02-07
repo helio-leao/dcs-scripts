@@ -1,5 +1,4 @@
 -- todo: punishment for canceling mission
--- todo: change color of selected route zones markings on map
 -- note: add missions history with ponctuation or cash?
 -- todo: refactor getRandomRoute and getRandomRouteList
 -- todo: randomize cargo weight
@@ -119,14 +118,27 @@ local function markAllZones()
     local coalition = -1
     local lineType = 1
     local radius = 2000
+    local readOnly = false
 
     for index, zone in ipairs(availableZones) do
         trigger.action.circleToAll(coalition, index, zone.point,
-            radius, blue, transparent, lineType)
-        trigger.action.textToAll(coalition, #availableZones + index,
+            radius, blue, transparent, lineType, readOnly)
+        trigger.action.textToAll(coalition, index + #availableZones,
             { x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y },
-            blue, transparent, 20,  true, zone.id)
+            blue, transparent, 20,  true, zone.id, readOnly)
     end
+end
+
+local function setSelectedRouteMarksColor(route, isSelected)
+    local black = { 0, 0, 0, 1 }
+    local blue = {0, 0, 1, 1}
+
+    local color = isSelected and black or blue
+
+    trigger.action.setMarkupColor(route.origin.id, color)
+    trigger.action.setMarkupColor(route.origin.id + #availableZones, color)
+    trigger.action.setMarkupColor(route.destiny.id, color)
+    trigger.action.setMarkupColor(route.destiny.id + #availableZones, color)
 end
 
 -------------------------------------------------------------------------------------------------------------------------
@@ -158,8 +170,11 @@ local function showRouteInformation(args)
     trigger.action.outText(data, 10)
 end
 
-local function cancelRoute()
+local function cancelRoute(args)
+    local route = args.route
+
     trigger.action.outText('Route Canceled', 10)
+    setSelectedRouteMarksColor(route, false)
     restartCommands()
 end
 
@@ -175,6 +190,8 @@ local function unloadCargo(args)
     -- calculate delivery time
     local timeCargoUnloaded = timer.getAbsTime()
     local deliveryTime = timeCargoUnloaded - timeCargoLoaded
+
+    setSelectedRouteMarksColor(route, false)
 
     -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
@@ -220,6 +237,8 @@ local function selectRoute(args)
 
     trigger.action.outText('Route ' .. route.origin.id .. ' to '
         .. route.destiny.id .. ' selected. Load cargo on origin point.', 10)
+
+    setSelectedRouteMarksColor(route, true)
 
     -- updates commands for cargo loading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
