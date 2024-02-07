@@ -2,6 +2,7 @@
 -- todo: change color of selected route zones markings on map
 -- note: add missions history with ponctuation or cash?
 -- todo: refactor getRandomRoute and getRandomRouteList
+-- todo: randomize cargo weight
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -209,8 +210,8 @@ updateCommands = function()
     -- create each route submenu and commands
     for _, route in ipairs(routes) do
         local routeSubmenu = missionCommands.addSubMenu(
-            route.origin.id .. ' to ' .. route.destiny.id .. '(' ..
-            math.floor(route.distance / 1000) .. 'm)', mainSubmenu)
+            route.origin.id .. ' to ' .. route.destiny.id .. ' (' ..
+            math.floor(route.distance / 1000) .. 'km)', mainSubmenu)
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
     end
