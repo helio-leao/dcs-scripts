@@ -14,9 +14,26 @@ local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
 local MAIN_SUBMENU_NAME = 'Transport Mission'
 local CARGO_WEIGHT = 1000   -- note: 10 people
+local AVERAGE_SPEED = 200   -- note: 200km/h
 
 local availableZones = {}
 local player  -- note: start with nil?
+
+-------------------------------------------------------------------------------------------------------------------------
+
+-- returns time in minutes
+local function getDeliveryTime(distance, averageSpeed)
+    local speedInMetersPerSecond = averageSpeed * 1000 / 3600  -- convert km/h to m/s
+    local timeInSeconds = distance / speedInMetersPerSecond
+    local timeInMinutes = math.floor(timeInSeconds / 60)
+    return timeInMinutes
+end
+
+local function getDistance(point1, point2)
+    local xd = point1.x - point2.x;
+    local zd = point1.z - point2.z;
+    return math.sqrt(xd * xd + zd * zd);
+end
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -50,12 +67,6 @@ local function getAllZones()
     until not zone
 
     return allZones
-end
-
-local function getDistance(point1, point2)
-    local xd = point1.x - point2.x;
-    local zd = point1.z - point2.z;
-    return math.sqrt(xd * xd + zd * zd);
 end
 
 local function getRandomRoute()
@@ -102,14 +113,54 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
+local function markAllZones()
+    local blue = {0, 0, 1, 1}
+    local transparent = {0, 0, 0, 0}
+    local coalition = -1
+    local lineType = 1
+    local radius = 2000
+
+    for index, zone in ipairs(availableZones) do
+        trigger.action.circleToAll(coalition, index, zone.point,
+            radius, blue, transparent, lineType)
+        trigger.action.textToAll(coalition, #availableZones + index,
+            { x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y },
+            blue, transparent, 20,  true, zone.id)
+    end
+end
+
+-------------------------------------------------------------------------------------------------------------------------
+
 -- note: forward declaration of function
 -- note: start with some value?
-local  updateCommands
+local  startCommands
 
 
 local function restartCommands()
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
-    updateCommands()
+    startCommands()
+end
+
+local function showRouteInformation(args)
+    local route = args.route
+    local timeCargoLoaded = args.timeCargoLoaded
+
+    local deliveryTime = getDeliveryTime(route.distance, AVERAGE_SPEED)
+
+    local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
+        'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
+        'Delivery time: ' .. deliveryTime .. ' minutes at 200km/h'
+
+    if timeCargoLoaded then
+        data = data .. '\nTime of cargo loading: ' .. timeCargoLoaded
+    end
+
+    trigger.action.outText(data, 10)
+end
+
+local function cancelRoute()
+    trigger.action.outText('Route Canceled', 10)
+    restartCommands()
 end
 
 local function unloadCargo(args)
@@ -128,34 +179,9 @@ local function unloadCargo(args)
     -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Delivery made in '
-        .. deliveryTime .. ' seconds', 10)
+        .. deliveryTime .. ' seconds. You may choose another route.', 10)
 
     -- restart
-    restartCommands()
-end
-
-local function showRouteInformation(args)
-    local route = args.route
-    local timeCargoLoaded = args.timeCargoLoaded
-
-    -- calculate approximate time in minutes, given a speed of 200 km/h
-    local speedInMetersPerSecond = 200 * 1000 / 3600  -- convert km/h to m/s
-    local aproxTimeInSeconds = route.distance / speedInMetersPerSecond
-    local aproxTimeInMinutes = math.floor(aproxTimeInSeconds / 60)
-
-    local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
-        'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
-        'Approximate time: ' .. aproxTimeInMinutes .. ' minutes at 200km/h'
-
-    if timeCargoLoaded then
-        data = data .. '\nTime of cargo loading: ' .. timeCargoLoaded
-    end
-
-    trigger.action.outText(data, 10)
-end
-
-local function cancelRoute()
-    trigger.action.outText('Route Canceled', 10)
     restartCommands()
 end
 
@@ -174,11 +200,13 @@ local function loadCargo(args)
 
     trigger.action.outText(CARGO_WEIGHT ..
         'kg cargo loaded at time ' .. timeCargoLoaded ..
-        '. Select "unload cargo" on destiny point.', 10)
+        '. Unload cargo on destiny point: ' .. route.destiny.id .. '.', 10)
 
     -- updates commands for cargo unloading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
+
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
+
     missionCommands.addCommand('Unload Cargo', mainSubmenu, unloadCargo,
         { route = route, timeCargoLoaded = timeCargoLoaded })
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation,
@@ -191,17 +219,19 @@ local function selectRoute(args)
     local route = args.route
 
     trigger.action.outText('Route ' .. route.origin.id .. ' to '
-        .. route.destiny.id .. ' selected. Select "load cargo" on origin point.', 10)
+        .. route.destiny.id .. ' selected. Load cargo on origin point.', 10)
 
     -- updates commands for cargo loading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
+
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
+
     missionCommands.addCommand('Load Cargo', mainSubmenu, loadCargo, { route = route })
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation, { route = route })
     missionCommands.addCommand('Cancel', mainSubmenu, cancelRoute, { route = route })
 end
 
-updateCommands = function()
+startCommands = function()
     local routes = getRandomRouteList()
 
     -- create main submenu
@@ -209,27 +239,13 @@ updateCommands = function()
 
     -- create each route submenu and commands
     for _, route in ipairs(routes) do
-        local routeSubmenu = missionCommands.addSubMenu(
-            route.origin.id .. ' to ' .. route.destiny.id .. ' (' ..
-            math.floor(route.distance / 1000) .. 'km)', mainSubmenu)
+        local distanceInKilometers = math.floor(route.distance / 1000)
+
+        local routeSubmenu = missionCommands.addSubMenu(route.origin.id .. ' to ' .. route.destiny.id
+            .. ' (' .. distanceInKilometers .. 'km)', mainSubmenu)
+
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
-    end
-end
-
-local function markAllZones()
-    local blue = {0, 0, 1, 1}
-    local transparent = {0, 0, 0, 0}
-    local coalition = -1
-    local lineType = 1
-    local radius = 2000
-
-    for index, zone in ipairs(availableZones) do
-        trigger.action.circleToAll(coalition, index, zone.point,
-            radius, blue, transparent, lineType)
-        trigger.action.textToAll(coalition, #availableZones + index,
-            { x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y },
-            blue, transparent, 20,  true, zone.id)
     end
 end
 
@@ -249,7 +265,7 @@ local function main()
     end
 
     markAllZones()
-    updateCommands()
+    startCommands()
 end
 
 main()
