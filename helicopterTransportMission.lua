@@ -3,6 +3,12 @@
 -- note: add missions history with ponctuation or cash?
 -- todo: refactor getRandomRoute and getRandomRouteList
 
+-- vec3 = { x: number, y: number, z: number }
+-- zone = { id: number, point: vec3, radius: number }
+-- route = { origin: zone, destiny: zone, distance: number }
+
+-------------------------------------------------------------------------------------------------------------------------
+
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
 local MAIN_SUBMENU_NAME = 'Transport Mission'
@@ -45,6 +51,12 @@ local function getAllZones()
     return allZones
 end
 
+local function getDistance(point1, point2)
+    local xd = point1.x - point2.x;
+    local zd = point1.z - point2.z;
+    return math.sqrt(xd * xd + zd * zd);
+end
+
 local function getRandomRoute()
     local randomZoneIndex1 = math.random(#availableZones)
     local randomZoneIndex2
@@ -53,9 +65,13 @@ local function getRandomRoute()
         randomZoneIndex2 = math.random(#availableZones)
     until randomZoneIndex2 ~= randomZoneIndex1
 
+    local origin = availableZones[randomZoneIndex1]
+    local destiny = availableZones[randomZoneIndex2]
+
     return {
-        origin = availableZones[randomZoneIndex1],
-        destiny = availableZones[randomZoneIndex2]
+        origin = origin,
+        destiny = destiny,
+        distance = getDistance(origin.point, destiny.point)
     }
 end
 
@@ -117,26 +133,17 @@ local function unloadCargo(args)
     restartCommands()
 end
 
-local function getDistance(point1, point2)
-    local xd = point1.x - point2.x;
-    local zd = point1.z - point2.z;
-    return math.sqrt(xd * xd + zd * zd);
-end
-
 local function showRouteInformation(args)
     local route = args.route
     local timeCargoLoaded = args.timeCargoLoaded
 
-    -- todo: receive this value instead of calculating here
-    local distance = getDistance(route.origin.point, route.destiny.point)
-
     -- calculate approximate time in minutes, given a speed of 200 km/h
     local speedInMetersPerSecond = 200 * 1000 / 3600  -- convert km/h to m/s
-    local aproxTimeInSeconds = distance / speedInMetersPerSecond
+    local aproxTimeInSeconds = route.distance / speedInMetersPerSecond
     local aproxTimeInMinutes = math.floor(aproxTimeInSeconds / 60)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
-        'Distance: ' .. math.floor(distance) .. ' meters\n' ..
+        'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
         'Approximate time: ' .. aproxTimeInMinutes .. ' minutes at 200km/h'
 
     if timeCargoLoaded then
@@ -159,18 +166,22 @@ local function loadCargo(args)
         return
     end
 
+    local timeCargoLoaded = timer.getAbsTime()
+
     -- add cargo to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, CARGO_WEIGHT)
+
     trigger.action.outText(CARGO_WEIGHT ..
-        'kg cargo loaded. Select "unload cargo when on destiny point."', 10)
+        'kg cargo loaded at time ' .. timeCargoLoaded ..
+        '. Select "unload cargo" on destiny point.', 10)
 
     -- updates commands for cargo unloading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
     missionCommands.addCommand('Unload Cargo', mainSubmenu, unloadCargo,
-        { route = route, timeCargoLoaded = timer.getAbsTime() })
+        { route = route, timeCargoLoaded = timeCargoLoaded })
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation,
-        { route = route, timeCargoLoaded = timer.getAbsTime() })
+        { route = route, timeCargoLoaded = timeCargoLoaded })
     missionCommands.addCommand('Cancel', mainSubmenu, cancelRoute,
         { route = route })
 end
@@ -179,7 +190,7 @@ local function selectRoute(args)
     local route = args.route
 
     trigger.action.outText('Route ' .. route.origin.id .. ' to '
-        .. route.destiny.id .. ' selected. Select "load cargo" when on origin point.', 10)
+        .. route.destiny.id .. ' selected. Select "load cargo" on origin point.', 10)
 
     -- updates commands for cargo loading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
@@ -198,7 +209,8 @@ updateCommands = function()
     -- create each route submenu and commands
     for _, route in ipairs(routes) do
         local routeSubmenu = missionCommands.addSubMenu(
-            route.origin.id .. ' to ' .. route.destiny.id, mainSubmenu)
+            route.origin.id .. ' to ' .. route.destiny.id .. '(' ..
+            math.floor(route.distance / 1000) .. 'm)', mainSubmenu)
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
     end
