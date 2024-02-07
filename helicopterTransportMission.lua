@@ -1,7 +1,6 @@
--- todo: punishment for canceling mission
+-- note: add punishment for canceling mission?
 -- note: add missions history with ponctuation or cash?
--- todo: refactor getRandomRoute and getRandomRouteList
--- todo: randomize cargo weight
+-- note: refactor getRandomRoute and getRandomRouteList?
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -12,17 +11,18 @@
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
 local MAIN_SUBMENU_NAME = 'Transport Mission'
-local CARGO_WEIGHT = 1000   -- note: 10 people
-local AVERAGE_SPEED = 200   -- note: 200km/h
+local CARGO_MIN_WEIGHT = 500 -- kg
+local CARGO_MAX_WEIGHT = 2000 -- kg
+local AVERAGE_SPEED = 200 -- km/h
 
 local availableZones = {}
-local player  -- note: start with nil?
+local player -- note: start with nil?
 
 -------------------------------------------------------------------------------------------------------------------------
 
 -- returns time in minutes
 local function getDeliveryTime(distance, averageSpeed)
-    local speedInMetersPerSecond = averageSpeed * 1000 / 3600  -- convert km/h to m/s
+    local speedInMetersPerSecond = averageSpeed * 1000 / 3600 -- convert km/h to m/s
     local timeInSeconds = distance / speedInMetersPerSecond
     local timeInMinutes = math.floor(timeInSeconds / 60)
     return timeInMinutes
@@ -82,7 +82,8 @@ local function getRandomRoute()
     return {
         origin = origin,
         destiny = destiny,
-        distance = getDistance(origin.point, destiny.point)
+        distance = getDistance(origin.point, destiny.point),
+        cargoWeight = math.random(CARGO_MIN_WEIGHT, CARGO_MAX_WEIGHT)
     }
 end
 
@@ -161,7 +162,8 @@ local function showRouteInformation(args)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
         'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
-        'Delivery time: ' .. deliveryTime .. ' minutes at 200km/h'
+        'Delivery time: ' .. deliveryTime .. ' minutes at 200km/h\n' ..
+        'Cargo weight: ' .. route.cargoWeight .. 'kg'
 
     if timeCargoLoaded then
         data = data .. '\nTime of cargo loading: ' .. timeCargoLoaded
@@ -213,9 +215,9 @@ local function loadCargo(args)
     local timeCargoLoaded = timer.getAbsTime()
 
     -- add cargo to aircraft
-    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, CARGO_WEIGHT)
+    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.cargoWeight)
 
-    trigger.action.outText(CARGO_WEIGHT ..
+    trigger.action.outText(route.cargoWeight ..
         'kg cargo loaded at time ' .. timeCargoLoaded ..
         '. Unload cargo on destiny point: ' .. route.destiny.id .. '.', 10)
 
@@ -282,7 +284,6 @@ local function main()
         trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME .. '" needed to run script.', 10)
         return
     end
-
     markAllZones()
     startCommands()
 end
