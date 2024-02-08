@@ -1,6 +1,7 @@
 -- note: add punishment for canceling mission?
 -- note: add missions history with ponctuation or cash?
 -- note: refactor getRandomRoute and getRandomRouteList?
+-- todo: format times obtained with timer.getAbsTime()
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -37,15 +38,9 @@ end
 -------------------------------------------------------------------------------------------------------------------------
 
 -- note: no altitude verification
--- note: checking whether the player is inside a square-shaped zone rather than a circular one
--- issue: precision is off (easy to see on small zones)
 local function isPlayerInZone(zone)
     local playerPosition = player:getPoint()
-
-    return playerPosition.x >= (zone.point.x - zone.radius)
-        and playerPosition.x <= (zone.point.x + zone.radius)
-        and playerPosition.y >= (zone.point.y - zone.radius)
-        and playerPosition.y <= (zone.point.y + zone.radius)
+    return getDistance(zone.point, playerPosition) <= zone.radius
 end
 
 local function getAllZones()
@@ -198,7 +193,7 @@ local function unloadCargo(args)
     -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Delivery made in '
-        .. deliveryTime .. ' seconds. You may choose another route.', 10)
+        .. math.floor(deliveryTime) .. ' seconds. You may choose another route.', 10)
 
     -- restart
     restartCommands()
