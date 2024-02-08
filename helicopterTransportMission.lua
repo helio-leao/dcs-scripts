@@ -11,13 +11,13 @@
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
-local MAIN_SUBMENU_NAME = 'Transport Mission'
+local MAIN_SUBMENU_NAME = 'Transport'
 local CARGO_MIN_WEIGHT = 500 -- kg
 local CARGO_MAX_WEIGHT = 2000 -- kg
-local AVERAGE_SPEED = 200 -- km/h
+local AVERAGE_SPEED = 180 -- km/h
 
 local availableZones = {}
-local player -- note: start with nil?
+local player
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -33,6 +33,14 @@ local function getDistance(point1, point2)
     local xd = point1.x - point2.x;
     local zd = point1.z - point2.z;
     return math.sqrt(xd * xd + zd * zd);
+end
+
+local function secondsToMinutes(seconds)
+    return seconds / 60;
+end
+
+local function metersToKilometers(meters)
+    return meters / 1000;
 end
 
 -------------------------------------------------------------------------------------------------------------------------
@@ -140,7 +148,6 @@ end
 -------------------------------------------------------------------------------------------------------------------------
 
 -- note: forward declaration of function
--- note: start with some value?
 local  startCommands
 
 
@@ -157,7 +164,7 @@ local function showRouteInformation(args)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
         'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
-        'Delivery time: ' .. deliveryTime .. ' minutes at 200km/h\n' ..
+        'Delivery time: ' .. deliveryTime .. ' minutes at '.. AVERAGE_SPEED .. 'km/h\n' ..
         'Cargo weight: ' .. route.cargoWeight .. 'kg'
 
     if timeCargoLoaded then
@@ -186,14 +193,14 @@ local function unloadCargo(args)
 
     -- calculate delivery time
     local timeCargoUnloaded = timer.getAbsTime()
-    local deliveryTime = timeCargoUnloaded - timeCargoLoaded
+    local deliveryTime = secondsToMinutes(timeCargoUnloaded - timeCargoLoaded)
 
     setSelectedRouteMarksColor(route, false)
 
     -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Cargo unloaded. Delivery made in '
-        .. math.floor(deliveryTime) .. ' seconds. You may choose another route.', 10)
+        .. math.floor(deliveryTime) .. ' minutes. You may choose another route.', 10)
 
     -- restart
     restartCommands()
@@ -255,14 +262,16 @@ startCommands = function()
 
     -- create each route submenu and commands
     for _, route in ipairs(routes) do
-        local distanceInKilometers = math.floor(route.distance / 1000)
+        local distance = metersToKilometers(route.distance)
 
         local routeSubmenu = missionCommands.addSubMenu(route.origin.id .. ' to ' .. route.destiny.id
-            .. ' (' .. distanceInKilometers .. 'km)', mainSubmenu)
+            .. ' | ' .. math.floor(distance) .. 'km | ' .. getDeliveryTime(
+                route.distance, AVERAGE_SPEED) .. ' min' , mainSubmenu)
 
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
     end
+    missionCommands.addCommand('Refresh', mainSubmenu, restartCommands)
 end
 
 -------------------------------------------------------------------------------------------------------------------------
