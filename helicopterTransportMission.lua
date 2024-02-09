@@ -1,7 +1,7 @@
 -- note: add punishment for canceling mission?
+-- note: use points or cash for mission list refreshing?
 -- note: add missions history with ponctuation or cash?
 -- note: refactor getRandomRoute and getRandomRouteList?
--- todo: format times obtained with timer.getAbsTime()
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -22,6 +22,7 @@ local player
 -------------------------------------------------------------------------------------------------------------------------
 
 -- returns time in minutes
+-- todo: refactor
 local function getDeliveryTime(distance, averageSpeed)
     local speedInMetersPerSecond = averageSpeed * 1000 / 3600 -- convert km/h to m/s
     local timeInSeconds = distance / speedInMetersPerSecond
@@ -41,6 +42,14 @@ end
 
 local function metersToKilometers(meters)
     return meters / 1000;
+end
+
+local function absTimeToDHMS(seconds)
+    local days = math.floor(seconds / 86400)
+    local hours = math.floor((seconds % 86400) / 3600)
+    local minutes = math.floor((seconds % 3600) / 60)
+    local remainingSeconds = seconds % 60
+    return days, hours, minutes, remainingSeconds
 end
 
 -------------------------------------------------------------------------------------------------------------------------
@@ -121,18 +130,18 @@ local function markAllZones()
     local transparent = {0, 0, 0, 0}
     local coalition = -1
     local lineType = 1
-    local radius = 2000
     local readOnly = false
 
     for index, zone in ipairs(availableZones) do
         trigger.action.circleToAll(coalition, index, zone.point,
-            radius, blue, transparent, lineType, readOnly)
+            zone.radius, blue, transparent, lineType, readOnly)
         trigger.action.textToAll(coalition, index + #availableZones,
-            { x = zone.point.x + radius, z = zone.point.z + radius, y = zone.point.y },
+            { x = zone.point.x + zone.radius, z = zone.point.z + zone.radius, y = zone.point.y },
             blue, transparent, 20,  true, zone.id, readOnly)
     end
 end
 
+-- todo: change selected route zones texts
 local function setSelectedRouteMarksColor(route, isSelected)
     local black = { 0, 0, 0, 1 }
     local blue = {0, 0, 1, 1}
@@ -156,35 +165,37 @@ local function restartCommands()
     startCommands()
 end
 
-local function showRouteInformation(args)
-    local route = args.route
-    local timeCargoLoaded = args.timeCargoLoaded
+local function showRouteInformation(params)
+    local route = params.route
+    local timeCargoLoaded = params.timeCargoLoaded
 
     local deliveryTime = getDeliveryTime(route.distance, AVERAGE_SPEED)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
         'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
-        'Delivery time: ' .. deliveryTime .. ' minutes at '.. AVERAGE_SPEED .. 'km/h\n' ..
+        'Delivery time: ' .. deliveryTime .. ' min\n'..
         'Cargo weight: ' .. route.cargoWeight .. 'kg'
 
     if timeCargoLoaded then
-        data = data .. '\nTime of cargo loading: ' .. timeCargoLoaded
+        local _, hours, minutes, seconds = absTimeToDHMS(timeCargoLoaded)
+        data = data .. '\nTime of cargo loading: ' .. string.format('%.2d', hours) ..
+            ':' .. string.format('%.2d', minutes) .. ':' .. string.format('%.2d', seconds)
     end
 
     trigger.action.outText(data, 10)
 end
 
-local function cancelRoute(args)
-    local route = args.route
+local function cancelRoute(params)
+    local route = params.route
 
     trigger.action.outText('Route Canceled', 10)
     setSelectedRouteMarksColor(route, false)
     restartCommands()
 end
 
-local function unloadCargo(args)
-    local route = args.route
-    local timeCargoLoaded = args.timeCargoLoaded
+local function unloadCargo(params)
+    local route = params.route
+    local timeCargoLoaded = params.timeCargoLoaded
 
     if not isPlayerInZone(route.destiny) then
         trigger.action.outText('Not on LZ', 10)
@@ -206,8 +217,8 @@ local function unloadCargo(args)
     restartCommands()
 end
 
-local function loadCargo(args)
-    local route = args.route
+local function loadCargo(params)
+    local route = params.route
 
     if not isPlayerInZone(route.origin) then
         trigger.action.outText('Not on LZ', 10)
@@ -220,8 +231,7 @@ local function loadCargo(args)
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.cargoWeight)
 
     trigger.action.outText(route.cargoWeight ..
-        'kg cargo loaded at time ' .. timeCargoLoaded ..
-        '. Unload cargo on destiny point: ' .. route.destiny.id .. '.', 10)
+        'kg cargo loaded. Unload cargo on destiny point ' .. route.destiny.id .. '.', 10)
 
     -- updates commands for cargo unloading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
@@ -236,8 +246,8 @@ local function loadCargo(args)
         { route = route })
 end
 
-local function selectRoute(args)
-    local route = args.route
+local function selectRoute(params)
+    local route = params.route
 
     trigger.action.outText('Route ' .. route.origin.id .. ' to '
         .. route.destiny.id .. ' selected. Load cargo on origin point.', 10)
@@ -265,8 +275,7 @@ startCommands = function()
         local distance = metersToKilometers(route.distance)
 
         local routeSubmenu = missionCommands.addSubMenu(route.origin.id .. ' to ' .. route.destiny.id
-            .. ' | ' .. math.floor(distance) .. 'km | ' .. getDeliveryTime(
-                route.distance, AVERAGE_SPEED) .. ' min' , mainSubmenu)
+            .. ' | ' .. math.floor(distance) .. 'km | ' .. route.cargoWeight .. 'kg' , mainSubmenu)
 
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
