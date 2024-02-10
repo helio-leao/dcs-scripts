@@ -16,6 +16,11 @@ local CARGO_MIN_WEIGHT = 500 -- kg
 local CARGO_MAX_WEIGHT = 2000 -- kg
 local AVERAGE_SPEED = 180 -- km/h
 
+local colors = {
+    ACTIVE = { 0, 0, 1, 1 },
+    INACTIVE = { 0, 0, 0, 1 }
+}
+
 local availableZones = {}
 local player
 
@@ -126,31 +131,30 @@ end
 -------------------------------------------------------------------------------------------------------------------------
 
 local function markAllZones()
-    local blue = {0, 0, 1, 1}
-    local transparent = {0, 0, 0, 0}
+    local transparent = { 0, 0, 0, 0 }
     local coalition = -1
     local lineType = 1
     local readOnly = false
 
     for index, zone in ipairs(availableZones) do
         trigger.action.circleToAll(coalition, index, zone.point,
-            zone.radius, blue, transparent, lineType, readOnly)
+            zone.radius, colors.INACTIVE, transparent, lineType, readOnly)
         trigger.action.textToAll(coalition, index + #availableZones,
             { x = zone.point.x + zone.radius, z = zone.point.z + zone.radius, y = zone.point.y },
-            blue, transparent, 20,  true, zone.id, readOnly)
+            colors.INACTIVE, transparent, 20,  true, zone.id, readOnly)
     end
 end
 
--- todo: change selected route zones texts
 local function setSelectedRouteMarksColor(route, isSelected)
-    local black = { 0, 0, 0, 1 }
-    local blue = {0, 0, 1, 1}
-
-    local color = isSelected and black or blue
+    local color = isSelected and colors.ACTIVE or colors.INACTIVE
 
     trigger.action.setMarkupColor(route.origin.id, color)
+    trigger.action.setMarkupText(route.origin.id + #availableZones,
+        isSelected and 'Origin' or route.origin.id)
     trigger.action.setMarkupColor(route.origin.id + #availableZones, color)
     trigger.action.setMarkupColor(route.destiny.id, color)
+    trigger.action.setMarkupText(route.destiny.id + #availableZones,
+        isSelected and 'Destiny' or route.destiny.id)
     trigger.action.setMarkupColor(route.destiny.id + #availableZones, color)
 end
 
@@ -170,15 +174,16 @@ local function showRouteInformation(params)
     local timeCargoLoaded = params.timeCargoLoaded
 
     local deliveryTime = getDeliveryTime(route.distance, AVERAGE_SPEED)
+    local distance = metersToKilometers(route.distance)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
-        'Distance: ' .. math.floor(route.distance) .. ' meters\n' ..
-        'Delivery time: ' .. deliveryTime .. ' min\n'..
+        'Distance: ' .. math.floor(distance) .. 'km\n' ..
+        'Delivery in: ' .. deliveryTime .. ' min\n'..
         'Cargo weight: ' .. route.cargoWeight .. 'kg'
 
     if timeCargoLoaded then
         local _, hours, minutes, seconds = absTimeToDHMS(timeCargoLoaded)
-        data = data .. '\nTime of cargo loading: ' .. string.format('%.2d', hours) ..
+        data = data .. '\nCargo loaded at ' .. string.format('%.2d', hours) ..
             ':' .. string.format('%.2d', minutes) .. ':' .. string.format('%.2d', seconds)
     end
 
@@ -198,7 +203,7 @@ local function unloadCargo(params)
     local timeCargoLoaded = params.timeCargoLoaded
 
     if not isPlayerInZone(route.destiny) then
-        trigger.action.outText('Not on LZ', 10)
+        trigger.action.outText('Not on landing zone.', 10)
         return
     end
 
@@ -221,7 +226,7 @@ local function loadCargo(params)
     local route = params.route
 
     if not isPlayerInZone(route.origin) then
-        trigger.action.outText('Not on LZ', 10)
+        trigger.action.outText('Not on landing zone.', 10)
         return
     end
 
@@ -231,7 +236,7 @@ local function loadCargo(params)
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.cargoWeight)
 
     trigger.action.outText(route.cargoWeight ..
-        'kg cargo loaded. Unload cargo on destiny point ' .. route.destiny.id .. '.', 10)
+        'kg cargo loaded. Unload cargo on destiny point.', 10)
 
     -- updates commands for cargo unloading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
