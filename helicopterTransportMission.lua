@@ -13,7 +13,7 @@ local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
 local MAIN_SUBMENU_NAME = 'Transport'
 local CARGO_MIN_WEIGHT = 500 -- kg
-local CARGO_MAX_WEIGHT = 2000 -- kg
+local CARGO_MAX_WEIGHT = 1500 -- kg
 local AVERAGE_SPEED = 180 -- km/h
 
 local MESSAGE_SCREEN_TIME = 20
@@ -165,7 +165,7 @@ local  startCommands
 local function restartCommands()
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     startCommands()
-    trigger.action.outText('New routes available.', MESSAGE_SCREEN_TIME)
+    trigger.action.outText('Route list updated.', MESSAGE_SCREEN_TIME)
 end
 
 local function showRouteInformation(params)
@@ -175,7 +175,7 @@ local function showRouteInformation(params)
     local travelTime = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
     local distance = metersToKilometers(route.distance)
 
-    local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
+    local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n' ..
         'Weight: ' .. route.cargoWeight .. ' kg\n' ..
         'Distance: ' .. math.floor(distance) .. ' km\n' ..
         'Estimate time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
@@ -235,8 +235,9 @@ local function loadCargo(params)
     -- add cargo to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.cargoWeight)
 
-    trigger.action.outText(route.cargoWeight ..
-        ' kg cargo loaded.\nUnload cargo on destiny point.', MESSAGE_SCREEN_TIME)
+    trigger.action.outText('Cargo loaded.\nUnload cargo on destiny point.',
+        MESSAGE_SCREEN_TIME)
+    showRouteInformation({ route = route, timeCargoLoaded = timeCargoLoaded })
 
     -- updates commands for cargo unloading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
