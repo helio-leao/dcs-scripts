@@ -16,6 +16,8 @@ local CARGO_MIN_WEIGHT = 500 -- kg
 local CARGO_MAX_WEIGHT = 2000 -- kg
 local AVERAGE_SPEED = 180 -- km/h
 
+local MESSAGE_SCREEN_TIME = 20
+
 local colors = {
     ACTIVE = { 0, 0, 1, 1 },
     INACTIVE = { 0, 0, 0, 1 }
@@ -26,13 +28,9 @@ local player
 
 -------------------------------------------------------------------------------------------------------------------------
 
--- returns time in minutes
--- todo: refactor
-local function getDeliveryTime(distance, averageSpeed)
-    local speedInMetersPerSecond = averageSpeed * 1000 / 3600 -- convert km/h to m/s
-    local timeInSeconds = distance / speedInMetersPerSecond
-    local timeInMinutes = math.floor(timeInSeconds / 60)
-    return timeInMinutes
+local function getTravelTimeInSeconds(distanceInMeters, averageSpeedInKmh)
+    local metersPerSecond = (averageSpeedInKmh * 1000) / 3600
+    return distanceInMeters / metersPerSecond
 end
 
 local function getDistance(point1, point2)
@@ -49,7 +47,7 @@ local function metersToKilometers(meters)
     return meters / 1000;
 end
 
-local function absTimeToDHMS(seconds)
+local function timeInSecondsToDHMS(seconds)
     local days = math.floor(seconds / 86400)
     local hours = math.floor((seconds % 86400) / 3600)
     local minutes = math.floor((seconds % 3600) / 60)
@@ -167,33 +165,35 @@ local  startCommands
 local function restartCommands()
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     startCommands()
+    trigger.action.outText('New routes available.', MESSAGE_SCREEN_TIME)
 end
 
 local function showRouteInformation(params)
     local route = params.route
     local timeCargoLoaded = params.timeCargoLoaded
 
-    local deliveryTime = getDeliveryTime(route.distance, AVERAGE_SPEED)
+    local travelTime = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
     local distance = metersToKilometers(route.distance)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n\n' ..
-        'Distance: ' .. math.floor(distance) .. 'km\n' ..
-        'Delivery in: ' .. deliveryTime .. ' min\n'..
-        'Cargo weight: ' .. route.cargoWeight .. 'kg'
+        'Weight: ' .. route.cargoWeight .. ' kg\n' ..
+        'Distance: ' .. math.floor(distance) .. ' km\n' ..
+        'Estimate time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
 
     if timeCargoLoaded then
-        local _, hours, minutes, seconds = absTimeToDHMS(timeCargoLoaded)
-        data = data .. '\nCargo loaded at ' .. string.format('%.2d', hours) ..
+        local _, hours, minutes, seconds = timeInSecondsToDHMS(timeCargoLoaded + travelTime)
+
+        data = data .. '\nDelivery by ' .. string.format('%.2d', hours) ..
             ':' .. string.format('%.2d', minutes) .. ':' .. string.format('%.2d', seconds)
     end
 
-    trigger.action.outText(data, 10)
+    trigger.action.outText(data, MESSAGE_SCREEN_TIME)
 end
 
 local function cancelRoute(params)
     local route = params.route
 
-    trigger.action.outText('Route Canceled', 10)
+    trigger.action.outText('Route Canceled.', MESSAGE_SCREEN_TIME)
     setSelectedRouteMarksColor(route, false)
     restartCommands()
 end
@@ -203,20 +203,20 @@ local function unloadCargo(params)
     local timeCargoLoaded = params.timeCargoLoaded
 
     if not isPlayerInZone(route.destiny) then
-        trigger.action.outText('Not on landing zone.', 10)
+        trigger.action.outText('Not on landing zone.', MESSAGE_SCREEN_TIME)
         return
     end
 
     -- calculate delivery time
     local timeCargoUnloaded = timer.getAbsTime()
-    local deliveryTime = secondsToMinutes(timeCargoUnloaded - timeCargoLoaded)
+    local travelTime = secondsToMinutes(timeCargoUnloaded - timeCargoLoaded)
 
     setSelectedRouteMarksColor(route, false)
 
     -- remove cargo from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
-    trigger.action.outText('Cargo unloaded. Delivery made in '
-        .. math.floor(deliveryTime) .. ' minutes. You may choose another route.', 10)
+    trigger.action.outText('Cargo unloaded.\nDelivery made in ' .. math.floor(travelTime)
+        .. ' minutes.\nYou may choose another route.', MESSAGE_SCREEN_TIME)
 
     -- restart
     restartCommands()
@@ -226,7 +226,7 @@ local function loadCargo(params)
     local route = params.route
 
     if not isPlayerInZone(route.origin) then
-        trigger.action.outText('Not on landing zone.', 10)
+        trigger.action.outText('Not on landing zone.', MESSAGE_SCREEN_TIME)
         return
     end
 
@@ -236,7 +236,7 @@ local function loadCargo(params)
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.cargoWeight)
 
     trigger.action.outText(route.cargoWeight ..
-        'kg cargo loaded. Unload cargo on destiny point.', 10)
+        ' kg cargo loaded.\nUnload cargo on destiny point.', MESSAGE_SCREEN_TIME)
 
     -- updates commands for cargo unloading
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
@@ -255,7 +255,7 @@ local function selectRoute(params)
     local route = params.route
 
     trigger.action.outText('Route ' .. route.origin.id .. ' to '
-        .. route.destiny.id .. ' selected. Load cargo on origin point.', 10)
+        .. route.destiny.id .. ' selected.\nLoad cargo on origin point.', MESSAGE_SCREEN_TIME)
 
     setSelectedRouteMarksColor(route, true)
 
@@ -280,7 +280,7 @@ startCommands = function()
         local distance = metersToKilometers(route.distance)
 
         local routeSubmenu = missionCommands.addSubMenu(route.origin.id .. ' to ' .. route.destiny.id
-            .. ' | ' .. math.floor(distance) .. 'km | ' .. route.cargoWeight .. 'kg' , mainSubmenu)
+            .. ' | ' .. math.floor(distance) .. ' km | ' .. route.cargoWeight .. ' kg' , mainSubmenu)
 
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
@@ -295,11 +295,13 @@ local function main()
     player = Unit.getByName(PLAYER_UNIT_NAME)
 
     if #availableZones < 2 then
-        trigger.action.outText('More than 2 landing zones needed to run script.', 10)
+        trigger.action.outText('More than 2 landing zones needed to run script.',
+            MESSAGE_SCREEN_TIME)
         return
     end
     if not player then
-        trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME .. '" needed to run script.', 10)
+        trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME ..
+            '" needed to run script.', MESSAGE_SCREEN_TIME)
         return
     end
     markAllZones()
