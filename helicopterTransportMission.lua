@@ -10,11 +10,11 @@
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
+local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
+local PASSENGER_WEIGHT = 100 -- weight of one passenger in kg
+local AVERAGE_SPEED = 160 -- average speed for ideal travel time calculations in km/h
 local MAIN_SUBMENU_NAME = 'Transport'
-local PASSENGER_WEIGHT = 100 -- kg
-local AVERAGE_SPEED = 160 -- km/h
 
 local MESSAGE_SCREEN_TIME = 20
 
@@ -25,7 +25,7 @@ local colors = {
 
 local availableZones = {}
 local player
-local descentCapacity = 0
+local maxPassengers = 0
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -95,11 +95,13 @@ local function getRandomRoute()
     local origin = availableZones[randomZoneIndex1]
     local destiny = availableZones[randomZoneIndex2]
 
+    local minPassengers = math.ceil(maxPassengers / 2)
+
     return {
         origin = origin,
         destiny = destiny,
         distance = getDistance(origin.point, destiny.point),
-        passengers = math.random(1, descentCapacity)
+        passengers = math.random(minPassengers, maxPassengers)
     }
 end
 
@@ -182,10 +184,10 @@ local function showRouteInformation(params)
         'Estimated time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
 
     if embarkTime then
-        local _, hours, minutes, seconds = timeInSecondsToDHMS(embarkTime + travelTime)
+        local _, hours, minutes, _ = timeInSecondsToDHMS(embarkTime + travelTime)
 
         data = data .. '\nDisembark by ' .. string.format('%.2d', hours) ..
-            ':' .. string.format('%.2d', minutes) .. ':' .. string.format('%.2d', seconds)
+            ':' .. string.format('%.2d', minutes)
     end
 
     trigger.action.outText(data, MESSAGE_SCREEN_TIME)
@@ -315,9 +317,9 @@ local function main()
         return
     end
 
-    descentCapacity = player:getDescentCapacity()
+    maxPassengers = player:getDescentCapacity()
 
-    if descentCapacity == 0 then
+    if maxPassengers == 0 then
         trigger.action.outText('Helicopter does not support passengers.', MESSAGE_SCREEN_TIME)
         return
     end
