@@ -148,11 +148,11 @@ local function setSelectedRouteMarksColor(route, isSelected)
 
     trigger.action.setMarkupColor(route.origin.id, color)
     trigger.action.setMarkupText(route.origin.id + #availableZones,
-        isSelected and 'Origin' or route.origin.id)
+        isSelected and (route.origin.id .. ' - origin') or route.origin.id)
     trigger.action.setMarkupColor(route.origin.id + #availableZones, color)
     trigger.action.setMarkupColor(route.destiny.id, color)
     trigger.action.setMarkupText(route.destiny.id + #availableZones,
-        isSelected and 'Destiny' or route.destiny.id)
+        isSelected and (route.destiny.id .. ' - destiny') or route.destiny.id)
     trigger.action.setMarkupColor(route.destiny.id + #availableZones, color)
 end
 
@@ -178,7 +178,7 @@ local function showRouteInformation(params)
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n' ..
         'Weight: ' .. route.cargoWeight .. ' kg\n' ..
         'Distance: ' .. math.floor(distance) .. ' km\n' ..
-        'Estimate time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
+        'Estimated time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
 
     if timeCargoLoaded then
         local _, hours, minutes, seconds = timeInSecondsToDHMS(timeCargoLoaded + travelTime)
