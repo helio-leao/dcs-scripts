@@ -1,20 +1,20 @@
 -- note: add punishment for canceling mission?
 -- note: use points or cash for mission list refreshing?
--- note: add missions history with ponctuation or cash?
+-- note: add missions history?
 -- note: refactor getRandomRoute and getRandomRouteList?
+-- note: add radio transmission for navigation?
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
--- route = { origin: zone, destiny: zone, distance: number }
+-- route = { origin: zone, destiny: zone, distance: number, passengers: number }
 
 -------------------------------------------------------------------------------------------------------------------------
 
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PLAYER_UNIT_NAME = 'player'
 local MAIN_SUBMENU_NAME = 'Transport'
-local CARGO_MIN_WEIGHT = 500 -- kg
-local CARGO_MAX_WEIGHT = 1500 -- kg
-local AVERAGE_SPEED = 180 -- km/h
+local PASSENGER_WEIGHT = 100 -- kg
+local AVERAGE_SPEED = 160 -- km/h
 
 local MESSAGE_SCREEN_TIME = 20
 
@@ -25,6 +25,7 @@ local colors = {
 
 local availableZones = {}
 local player
+local descentCapacity = 0
 
 -------------------------------------------------------------------------------------------------------------------------
 
@@ -98,7 +99,7 @@ local function getRandomRoute()
         origin = origin,
         destiny = destiny,
         distance = getDistance(origin.point, destiny.point),
-        cargoWeight = math.random(CARGO_MIN_WEIGHT, CARGO_MAX_WEIGHT)
+        passengers = math.random(1, descentCapacity)
     }
 end
 
@@ -158,7 +159,7 @@ end
 
 -------------------------------------------------------------------------------------------------------------------------
 
--- note: forward declaration of function
+-- forward declaration of function
 local  startCommands
 
 
@@ -170,20 +171,20 @@ end
 
 local function showRouteInformation(params)
     local route = params.route
-    local timeCargoLoaded = params.timeCargoLoaded
+    local embarkTime = params.embarkTime
 
     local travelTime = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
     local distance = metersToKilometers(route.distance)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n' ..
-        'Weight: ' .. route.cargoWeight .. ' kg\n' ..
         'Distance: ' .. math.floor(distance) .. ' km\n' ..
+        'Passengers: ' .. route.passengers .. '\n' ..
         'Estimated time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
 
-    if timeCargoLoaded then
-        local _, hours, minutes, seconds = timeInSecondsToDHMS(timeCargoLoaded + travelTime)
+    if embarkTime then
+        local _, hours, minutes, seconds = timeInSecondsToDHMS(embarkTime + travelTime)
 
-        data = data .. '\nDelivery by ' .. string.format('%.2d', hours) ..
+        data = data .. '\nDisembark by ' .. string.format('%.2d', hours) ..
             ':' .. string.format('%.2d', minutes) .. ':' .. string.format('%.2d', seconds)
     end
 
@@ -193,36 +194,36 @@ end
 local function cancelRoute(params)
     local route = params.route
 
-    trigger.action.outText('Route Canceled.', MESSAGE_SCREEN_TIME)
+    trigger.action.outText('Route canceled.', MESSAGE_SCREEN_TIME)
     setSelectedRouteMarksColor(route, false)
     restartCommands()
 end
 
-local function unloadCargo(params)
+local function passengersDisembark(params)
     local route = params.route
-    local timeCargoLoaded = params.timeCargoLoaded
+    local embarkTime = params.embarkTime
 
     if not isPlayerInZone(route.destiny) then
         trigger.action.outText('Not on landing zone.', MESSAGE_SCREEN_TIME)
         return
     end
 
-    -- calculate delivery time
-    local timeCargoUnloaded = timer.getAbsTime()
-    local travelTime = secondsToMinutes(timeCargoUnloaded - timeCargoLoaded)
+    -- calculate travel time
+    local disembarkTime = timer.getAbsTime()
+    local travelTime = secondsToMinutes(disembarkTime - embarkTime)
 
     setSelectedRouteMarksColor(route, false)
 
-    -- remove cargo from aircraft
+    -- remove passengers weight from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
-    trigger.action.outText('Cargo unloaded.\nDelivery made in ' .. math.floor(travelTime)
+    trigger.action.outText('Passengers disembarked.\nTravel time was ' .. math.floor(travelTime)
         .. ' minutes.\nYou may choose another route.', MESSAGE_SCREEN_TIME)
 
     -- restart
     restartCommands()
 end
 
-local function loadCargo(params)
+local function passengersEmbark(params)
     local route = params.route
 
     if not isPlayerInZone(route.origin) then
@@ -230,24 +231,24 @@ local function loadCargo(params)
         return
     end
 
-    local timeCargoLoaded = timer.getAbsTime()
+    local embarkTime = timer.getAbsTime()
 
-    -- add cargo to aircraft
-    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.cargoWeight)
+    -- add passengers weight to aircraft
+    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.passengers * PASSENGER_WEIGHT)
 
-    trigger.action.outText('Cargo loaded.\nUnload cargo on destiny point.',
+    trigger.action.outText('Passengers embarked.\nTransport them to disembark point.',
         MESSAGE_SCREEN_TIME)
-    showRouteInformation({ route = route, timeCargoLoaded = timeCargoLoaded })
+    showRouteInformation({ route = route, embarkTime = embarkTime })
 
-    -- updates commands for cargo unloading
+    -- updates commands for passengers disembark
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
 
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
 
-    missionCommands.addCommand('Unload Cargo', mainSubmenu, unloadCargo,
-        { route = route, timeCargoLoaded = timeCargoLoaded })
+    missionCommands.addCommand('Passengers disembark', mainSubmenu, passengersDisembark,
+        { route = route, embarkTime = embarkTime })
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation,
-        { route = route, timeCargoLoaded = timeCargoLoaded })
+        { route = route, embarkTime = embarkTime })
     missionCommands.addCommand('Cancel', mainSubmenu, cancelRoute,
         { route = route })
 end
@@ -255,17 +256,17 @@ end
 local function selectRoute(params)
     local route = params.route
 
-    trigger.action.outText('Route ' .. route.origin.id .. ' to '
-        .. route.destiny.id .. ' selected.\nLoad cargo on origin point.', MESSAGE_SCREEN_TIME)
+    trigger.action.outText('Route ' .. route.origin.id .. ' to ' .. route.destiny.id ..
+        ' selected.\nPick the passengers on origin point.', MESSAGE_SCREEN_TIME)
 
     setSelectedRouteMarksColor(route, true)
 
-    -- updates commands for cargo loading
+    -- updates commands for passengers embarking
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
 
     local mainSubmenu = missionCommands.addSubMenu(MAIN_SUBMENU_NAME)
 
-    missionCommands.addCommand('Load Cargo', mainSubmenu, loadCargo, { route = route })
+    missionCommands.addCommand('Passengers embark', mainSubmenu, passengersEmbark, { route = route })
     missionCommands.addCommand('Information', mainSubmenu, showRouteInformation, { route = route })
     missionCommands.addCommand('Cancel', mainSubmenu, cancelRoute, { route = route })
 end
@@ -281,12 +282,13 @@ startCommands = function()
         local distance = metersToKilometers(route.distance)
 
         local routeSubmenu = missionCommands.addSubMenu(route.origin.id .. ' to ' .. route.destiny.id
-            .. ' | ' .. math.floor(distance) .. ' km | ' .. route.cargoWeight .. ' kg' , mainSubmenu)
+            .. ' | ' .. math.floor(distance) .. ' km | ' .. (route.passengers * PASSENGER_WEIGHT) ..
+            ' kg' , mainSubmenu)
 
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
     end
-    missionCommands.addCommand('Refresh', mainSubmenu, restartCommands)
+    missionCommands.addCommand('Refresh routes', mainSubmenu, restartCommands)
 end
 
 -------------------------------------------------------------------------------------------------------------------------
@@ -300,11 +302,26 @@ local function main()
             MESSAGE_SCREEN_TIME)
         return
     end
+
     if not player then
         trigger.action.outText('Unit named "' .. PLAYER_UNIT_NAME ..
             '" needed to run script.', MESSAGE_SCREEN_TIME)
         return
     end
+
+    if player:getCategory() ~= Unit.Category.HELICOPTER then
+        trigger.action.outText('Unit "' .. PLAYER_UNIT_NAME .. '" must be a helicopter.',
+            MESSAGE_SCREEN_TIME)
+        return
+    end
+
+    descentCapacity = player:getDescentCapacity()
+
+    if descentCapacity == 0 then
+        trigger.action.outText('Helicopter does not support passengers.', MESSAGE_SCREEN_TIME)
+        return
+    end
+
     markAllZones()
     startCommands()
 end
