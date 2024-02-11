@@ -13,7 +13,7 @@
 local PLAYER_UNIT_NAME = 'player'
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PASSENGER_WEIGHT = 100 -- weight of one passenger in kg
-local AVERAGE_SPEED = 160 -- average speed for ideal travel time calculations in km/h
+local AVERAGE_SPEED = 160 -- average speed for ideal travel duration calculations in km/h
 local MAIN_SUBMENU_NAME = 'Transport'
 
 local MESSAGE_SCREEN_TIME = 20
@@ -175,16 +175,16 @@ local function showRouteInformation(params)
     local route = params.route
     local embarkTime = params.embarkTime
 
-    local travelTime = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
+    local expectedDuration = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
     local distance = metersToKilometers(route.distance)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n' ..
         'Distance: ' .. math.floor(distance) .. ' km\n' ..
         'Passengers: ' .. route.passengers .. '\n' ..
-        'Estimated time: ' .. math.floor(secondsToMinutes(travelTime)) .. ' min'
+        'Estimated time: ' .. math.floor(secondsToMinutes(expectedDuration)) .. ' min'
 
     if embarkTime then
-        local _, hours, minutes, _ = timeInSecondsToDHMS(embarkTime + travelTime)
+        local _, hours, minutes, _ = timeInSecondsToDHMS(embarkTime + expectedDuration)
 
         data = data .. '\nDisembark by ' .. string.format('%.2d', hours) ..
             ':' .. string.format('%.2d', minutes)
@@ -197,6 +197,7 @@ local function cancelRoute(params)
     local route = params.route
 
     trigger.action.outText('Route canceled.', MESSAGE_SCREEN_TIME)
+    trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     setSelectedRouteMarksColor(route, false)
     restartCommands()
 end
@@ -210,16 +211,18 @@ local function passengersDisembark(params)
         return
     end
 
-    -- calculate travel time
-    local disembarkTime = timer.getAbsTime()
-    local travelTime = secondsToMinutes(disembarkTime - embarkTime)
-
     setSelectedRouteMarksColor(route, false)
+
+    -- calculate travel duration
+    local disembarkTime = timer.getAbsTime()
+    local travelDuration = secondsToMinutes(disembarkTime - embarkTime)
+    local expectedDuration = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
 
     -- remove passengers weight from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
-    trigger.action.outText('Passengers disembarked.\nTravel time was ' .. math.floor(travelTime)
-        .. ' minutes.\nYou may choose another route.', MESSAGE_SCREEN_TIME)
+    trigger.action.outText('Passengers disembarked.\nIt took ' .. math.floor(travelDuration) ..
+        ' minutes and it was expected in' .. math.floor(secondsToMinutes(expectedDuration)) ..
+        '.\nYou may choose another route.', MESSAGE_SCREEN_TIME)
 
     -- restart
     restartCommands()
@@ -258,10 +261,15 @@ end
 local function selectRoute(params)
     local route = params.route
 
+    setSelectedRouteMarksColor(route, true)
+
+    if isPlayerInZone(route.origin) then
+        passengersEmbark({ route = route })
+        return
+    end
+
     trigger.action.outText('Route ' .. route.origin.id .. ' to ' .. route.destiny.id ..
         ' selected.\nPick the passengers on origin point.', MESSAGE_SCREEN_TIME)
-
-    setSelectedRouteMarksColor(route, true)
 
     -- updates commands for passengers embarking
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
