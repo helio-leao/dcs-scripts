@@ -3,6 +3,7 @@
 -- note: add missions history?
 -- note: refactor getRandomRoute and getRandomRouteList?
 -- note: add radio transmission for navigation?
+-- note: add additional time for landing, takeoff, navigation setup?
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -221,7 +222,7 @@ local function passengersDisembark(params)
     -- remove passengers weight from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
     trigger.action.outText('Passengers disembarked.\nIt took ' .. math.floor(travelDuration) ..
-        ' minutes and it was expected in' .. math.floor(secondsToMinutes(expectedDuration)) ..
+        ' minutes and it was expected in ' .. math.floor(secondsToMinutes(expectedDuration)) ..
         '.\nYou may choose another route.', MESSAGE_SCREEN_TIME)
 
     -- restart
