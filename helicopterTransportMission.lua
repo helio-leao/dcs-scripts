@@ -3,7 +3,6 @@
 -- note: add missions history?
 -- note: refactor getRandomRoute and getRandomRouteList?
 -- note: add radio transmission for navigation?
--- note: add additional time for landing, takeoff, navigation setup?
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -14,7 +13,8 @@
 local PLAYER_UNIT_NAME = 'player'
 local ZONE_BASE_NAME = 'lz' -- lz-1, lz-2...
 local PASSENGER_WEIGHT = 100 -- weight of one passenger in kg
-local AVERAGE_SPEED = 160 -- average speed for ideal travel duration calculations in km/h
+local AVERAGE_SPEED = 180 -- average speed for ideal travel duration calculations in km/h
+local ADDITIONAL_TIME = 6 -- time in minutes for landing, takeoff, navigation setup...
 local MAIN_SUBMENU_NAME = 'Transport'
 
 local MESSAGE_SCREEN_TIME = 20
@@ -30,9 +30,15 @@ local maxPassengers = 0
 
 -------------------------------------------------------------------------------------------------------------------------
 
-local function getTravelTimeInSeconds(distanceInMeters, averageSpeedInKmh)
-    local metersPerSecond = (averageSpeedInKmh * 1000) / 3600
-    return distanceInMeters / metersPerSecond
+-- Calculates how much time it takes to travel a distance at a given speed
+-- @param distance The distance in meters
+-- @param averageSpeed The average speed in km/h
+-- @param additionalTime The additional time in minutes for anything other then traveling
+-- @return Travel time in seconds
+local function getTravelTime(distance, averageSpeed, additionalTime)
+    local metersPerSecond = (averageSpeed * 1000) / 3600
+    local travelTime = distance / metersPerSecond
+    return travelTime + (additionalTime * 60)
 end
 
 local function getDistance(point1, point2)
@@ -49,7 +55,7 @@ local function metersToKilometers(meters)
     return meters / 1000;
 end
 
-local function timeInSecondsToDHMS(seconds)
+local function secondsToDHMS(seconds)
     local days = math.floor(seconds / 86400)
     local hours = math.floor((seconds % 86400) / 3600)
     local minutes = math.floor((seconds % 3600) / 60)
@@ -169,14 +175,13 @@ local  startCommands
 local function restartCommands()
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
     startCommands()
-    trigger.action.outText('Route list updated.', MESSAGE_SCREEN_TIME)
 end
 
 local function showRouteInformation(params)
     local route = params.route
     local embarkTime = params.embarkTime
 
-    local expectedDuration = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
+    local expectedDuration = getTravelTime(route.distance, AVERAGE_SPEED, ADDITIONAL_TIME)
     local distance = metersToKilometers(route.distance)
 
     local data = route.origin.id .. ' to ' .. route.destiny.id .. '\n' ..
@@ -185,7 +190,7 @@ local function showRouteInformation(params)
         'Estimated time: ' .. math.floor(secondsToMinutes(expectedDuration)) .. ' min'
 
     if embarkTime then
-        local _, hours, minutes, _ = timeInSecondsToDHMS(embarkTime + expectedDuration)
+        local _, hours, minutes, _ = secondsToDHMS(embarkTime + expectedDuration)
 
         data = data .. '\nDisembark by ' .. string.format('%.2d', hours) ..
             ':' .. string.format('%.2d', minutes)
@@ -217,11 +222,11 @@ local function passengersDisembark(params)
     -- calculate travel duration
     local disembarkTime = timer.getAbsTime()
     local travelDuration = secondsToMinutes(disembarkTime - embarkTime)
-    local expectedDuration = getTravelTimeInSeconds(route.distance, AVERAGE_SPEED)
+    local expectedDuration = getTravelTime(route.distance, AVERAGE_SPEED, ADDITIONAL_TIME)
 
     -- remove passengers weight from aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, 0)
-    trigger.action.outText('Passengers disembarked.\nIt took ' .. math.floor(travelDuration) ..
+    trigger.action.outText('Passengers disembarked.\nThe trip took ' .. math.floor(travelDuration) ..
         ' minutes and it was expected in ' .. math.floor(secondsToMinutes(expectedDuration)) ..
         '.\nYou may choose another route.', MESSAGE_SCREEN_TIME)
 
@@ -299,7 +304,10 @@ startCommands = function()
         missionCommands.addCommand('Accept', routeSubmenu, selectRoute, { route = route })
         missionCommands.addCommand('Information', routeSubmenu, showRouteInformation, { route = route })
     end
-    missionCommands.addCommand('Refresh routes', mainSubmenu, restartCommands)
+    missionCommands.addCommand('Refresh routes', mainSubmenu, function ()
+        restartCommands()
+        trigger.action.outText('Route list updated.', MESSAGE_SCREEN_TIME)
+    end)
 end
 
 -------------------------------------------------------------------------------------------------------------------------
