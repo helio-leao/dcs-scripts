@@ -3,6 +3,7 @@
 -- note: add missions history?
 -- note: refactor getRandomRoute and getRandomRouteList?
 -- note: add radio transmission for navigation?
+-- note: create function to return standard route info string?
 
 -- vec3 = { x: number, y: number, z: number }
 -- zone = { id: number, point: vec3, radius: number }
@@ -243,13 +244,14 @@ local function passengersEmbark(params)
     end
 
     local embarkTime = timer.getAbsTime()
+    local expectedDuration = getTravelTime(route.distance, AVERAGE_SPEED, ADDITIONAL_TIME)
 
     -- add passengers weight to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.passengers * PASSENGER_WEIGHT)
 
-    trigger.action.outText('Passengers embarked.\nTransport them to disembark point.',
-        MESSAGE_SCREEN_TIME)
-    showRouteInformation({ route = route, embarkTime = embarkTime })
+    trigger.action.outText('Passengers embarked.\nTransport them to disembark point.' ..
+        '\nEstimated time is ' .. math.floor(secondsToMinutes(expectedDuration)) .. ' minutes.'
+        , MESSAGE_SCREEN_TIME)
 
     -- updates commands for passengers disembark
     missionCommands.removeItem({ [1] = MAIN_SUBMENU_NAME })
