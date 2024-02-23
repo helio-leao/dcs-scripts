@@ -249,7 +249,8 @@ local function passengersEmbark(params)
     -- add passengers weight to aircraft
     trigger.action.setUnitInternalCargo(PLAYER_UNIT_NAME, route.passengers * PASSENGER_WEIGHT)
 
-    trigger.action.outText('Passengers embarked.\nTransport them to disembark point.' ..
+    trigger.action.outText('Passengers embarked: ' .. route.passengers ..
+        '\nTransport them to disembark point.' ..
         '\nEstimated time is ' .. math.floor(secondsToMinutes(expectedDuration)) .. ' minutes.'
         , MESSAGE_SCREEN_TIME)
 
